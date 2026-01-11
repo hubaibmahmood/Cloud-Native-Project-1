@@ -1,0 +1,597 @@
+openapi: 3.1.0
+info:
+  title: Task Management API
+  description: |
+    A RESTful API for managing tasks with full CRUD operations.
+
+    ## Features
+    - Create, read, update, and delete tasks
+    - Task status tracking (pending, in_progress, completed)
+    - Optimistic locking for concurrent access safety
+    - Comprehensive validation and error handling
+    - Structured logging for observability
+
+    ## Authentication
+    No authentication required (open API, controlled environment)
+
+    ## Versioning
+    API version is included in responses. Tasks use version-based optimistic locking.
+
+  version: 1.0.0
+  contact:
+    name: Task Management API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.example.com
+    description: Production server (TBD)
+
+tags:
+  - name: Tasks
+    description: Task CRUD operations
+
+paths:
+  /tasks:
+    get:
+      tags:
+        - Tasks
+      summary: List all tasks
+      description: Retrieve a list of all tasks with optional filtering and pagination.
+      operationId: listTasks
+      parameters:
+        - name: status
+          in: query
+          description: Filter tasks by status
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+        - name: priority
+          in: query
+          description: Filter tasks by priority
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskPriority'
+        - name: tag
+          in: query
+          description: Filter tasks by tag (can be specified multiple times)
+          required: false
+          schema:
+            type: string
+          example: "urgent"
+        - name: limit
+          in: query
+          description: Maximum number of tasks to return
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of tasks to skip (for pagination)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of tasks retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  total:
+                    type: integer
+                    description: Total number of tasks matching filter
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+              example:
+                tasks:
+                  - id: 1
+                    title: "Complete project report"
+                    description: "Finalize Q4 report with metrics"
+                    status: "pending"
+                    priority: "high"
+                    due_date: "2026-01-15T18:00:00Z"
+                    tags: ["urgent", "documentation"]
+                    estimated_hours: 8.5
+                    version: 1
+                    created_at: "2026-01-08T10:30:00Z"
+                    updated_at: "2026-01-08T10:30:00Z"
+                  - id: 2
+                    title: "Review pull request"
+                    description: null
+                    status: "in_progress"
+                    priority: "medium"
+                    due_date: null
+                    tags: ["code-review"]
+                    estimated_hours: 1.0
+                    version: 2
+                    created_at: "2026-01-08T11:00:00Z"
+                    updated_at: "2026-01-08T11:15:00Z"
+                total: 2
+                limit: 50
+                offset: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Tasks
+      summary: Create a new task
+      description: Create a new task with title and optional description.
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+            example:
+              title: "Complete project report"
+              description: "Finalize Q4 report with metrics and analysis"
+              status: "pending"
+              priority: "high"
+              due_date: "2026-01-15T18:00:00Z"
+              tags: ["urgent", "documentation"]
+              estimated_hours: 8.5
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              example:
+                id: 1
+                title: "Complete project report"
+                description: "Finalize Q4 report with metrics and analysis"
+                status: "pending"
+                priority: "high"
+                due_date: "2026-01-15T18:00:00Z"
+                tags: ["urgent", "documentation"]
+                estimated_hours: 8.5
+                version: 1
+                created_at: "2026-01-08T10:30:00Z"
+                updated_at: "2026-01-08T10:30:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        description: Unique identifier of the task
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+
+    get:
+      tags:
+        - Tasks
+      summary: Get a task by ID
+      description: Retrieve detailed information about a specific task.
+      operationId: getTask
+      responses:
+        '200':
+          description: Task retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              example:
+                id: 1
+                title: "Complete project report"
+                description: "Finalize Q4 report with metrics and analysis"
+                status: "in_progress"
+                priority: "high"
+                due_date: "2026-01-15T18:00:00Z"
+                tags: ["urgent", "documentation"]
+                estimated_hours: 8.5
+                version: 3
+                created_at: "2026-01-08T10:30:00Z"
+                updated_at: "2026-01-08T14:20:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags:
+        - Tasks
+      summary: Update a task
+      description: |
+        Update one or more fields of an existing task.
+
+        **Optimistic Locking**: Include the current version in the `If-Match` header to prevent
+        concurrent update conflicts. If the version doesn't match, a 409 Conflict is returned.
+      operationId: updateTask
+      parameters:
+        - name: If-Match
+          in: header
+          description: Current version of the task (for optimistic locking)
+          required: true
+          schema:
+            type: string
+          example: "3"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+            example:
+              title: "Updated project report"
+              status: "completed"
+              priority: "medium"
+              tags: ["urgent", "documentation", "done"]
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              example:
+                id: 1
+                title: "Updated project report"
+                description: "Finalize Q4 report with metrics and analysis"
+                status: "completed"
+                priority: "medium"
+                due_date: "2026-01-15T18:00:00Z"
+                tags: ["urgent", "documentation", "done"]
+                estimated_hours: 8.5
+                version: 4
+                created_at: "2026-01-08T10:30:00Z"
+                updated_at: "2026-01-08T15:45:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '412':
+          description: Precondition Failed (If-Match header missing or malformed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: "PRECONDITION_FAILED"
+                  message: "If-Match header is required for updates"
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Tasks
+      summary: Delete a task
+      description: Permanently delete a task by its ID.
+      operationId: deleteTask
+      responses:
+        '204':
+          description: Task deleted successfully (no content)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    TaskStatus:
+      type: string
+      enum:
+        - pending
+        - in_progress
+        - completed
+      description: Current status of the task
+
+    TaskPriority:
+      type: string
+      enum:
+        - critical
+        - high
+        - medium
+        - low
+      description: Task priority level (critical=most urgent, low=least urgent)
+
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - priority
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: Unique identifier (auto-generated)
+          readOnly: true
+          example: 1
+        title:
+          type: string
+          description: Brief task description
+          minLength: 1
+          maxLength: 200
+          example: "Complete project report"
+        description:
+          type: string
+          nullable: true
+          description: Detailed task information (optional)
+          maxLength: 5000
+          example: "Finalize Q4 report with metrics and analysis"
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the task should be completed (optional)
+          example: "2026-01-15T18:00:00Z"
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          description: Labels for categorization (optional)
+          example: ["urgent", "documentation", "backend"]
+        estimated_hours:
+          type: number
+          format: decimal
+          nullable: true
+          minimum: 0
+          description: Estimated effort in hours (optional)
+          example: 8.5
+        version:
+          type: integer
+          description: Optimistic locking version number (auto-incremented)
+          readOnly: true
+          minimum: 1
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          description: Task creation timestamp (UTC)
+          readOnly: true
+          example: "2026-01-08T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last modification timestamp (UTC)
+          readOnly: true
+          example: "2026-01-08T14:20:00Z"
+
+    TaskCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: Brief task description
+          minLength: 1
+          maxLength: 200
+          example: "Complete project report"
+        description:
+          type: string
+          nullable: true
+          description: Detailed task information (optional)
+          maxLength: 5000
+          example: "Finalize Q4 report with metrics and analysis"
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+          default: "pending"
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+          default: "medium"
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the task should be completed (optional)
+          example: "2026-01-15T18:00:00Z"
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          description: Labels for categorization (optional)
+          example: ["urgent", "documentation"]
+        estimated_hours:
+          type: number
+          format: decimal
+          nullable: true
+          minimum: 0
+          description: Estimated effort in hours (optional)
+          example: 8.5
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Brief task description
+          minLength: 1
+          maxLength: 200
+          example: "Updated project report"
+        description:
+          type: string
+          nullable: true
+          description: Detailed task information
+          maxLength: 5000
+          example: "Revised Q4 report with additional metrics"
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the task should be completed
+          example: "2026-01-20T18:00:00Z"
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          description: Labels for categorization
+          example: ["urgent", "documentation", "backend"]
+        estimated_hours:
+          type: number
+          format: decimal
+          nullable: true
+          minimum: 0
+          description: Estimated effort in hours
+          example: 10.0
+      description: At least one field must be provided
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Task title is required"
+            details:
+              type: array
+              description: Field-level validation errors (optional)
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: "title"
+                  issue:
+                    type: string
+                    example: "Field required"
+
+    VersionConflictError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+            - current_version
+            - requested_version
+          properties:
+            code:
+              type: string
+              example: "VERSION_CONFLICT"
+            message:
+              type: string
+              example: "Task was modified by another request. Current version is 4."
+            current_version:
+              type: integer
+              description: The current version of the task in the database
+              example: 4
+            requested_version:
+              type: integer
+              description: The version provided in the request
+              example: 3
+
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "BAD_REQUEST"
+              message: "Invalid query parameter: status must be one of pending, in_progress, completed"
+
+    NotFound:
+      description: Not Found - Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "Task with ID 42 not found"
+
+    ValidationError:
+      description: Unprocessable Entity - Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "VALIDATION_ERROR"
+              message: "Invalid request data"
+              details:
+                - field: "title"
+                  issue: "Field required"
+                - field: "description"
+                  issue: "String should have at most 5000 characters"
+
+    VersionConflict:
+      description: Conflict - Version mismatch (optimistic locking)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/VersionConflictError'
+          example:
+            error:
+              code: "VERSION_CONFLICT"
+              message: "Task was modified by another request. Current version is 4."
+              current_version: 4
+              requested_version: 3
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "INTERNAL_SERVER_ERROR"
+              message: "An unexpected error occurred. Please try again later."

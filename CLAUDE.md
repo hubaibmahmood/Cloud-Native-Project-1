@@ -208,3 +208,10 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Python 3.12+ (using modern APIs like datetime.now(UTC)) + FastAPI (REST API framework), SQLModel (ORM/validation), Pydantic v2 (data validation), asyncpg (PostgreSQL async driver), Neon serverless PostgreSQL (cloud database) (001-task-api)
+- Neon serverless PostgreSQL database with SQLModel for schema management and ACID transactions (001-task-api)
+
+## Recent Changes
+- 001-task-api: Added Python 3.12+ (using modern APIs like datetime.now(UTC)) + FastAPI (REST API framework), SQLModel (ORM/validation), Pydantic v2 (data validation), asyncpg (PostgreSQL async driver), Neon serverless PostgreSQL (cloud database)
