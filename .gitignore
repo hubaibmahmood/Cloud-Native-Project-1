@@ -68,3 +68,7 @@ logs/
 
 # Alembic
 # migrations/versions/*.py  # Uncomment to ignore migration files
+
+# Claude-mem and development artifacts
+claude-mem-fix-proposal.md
+bun-wrapper-prototype.sh
