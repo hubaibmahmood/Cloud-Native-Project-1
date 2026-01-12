@@ -16,9 +16,11 @@ A production-ready REST API for managing tasks with full CRUD operations, built 
 
 ## Demo
 
-📹 **[Watch Demo Video](./cloud%20native%20project%201%20demo.mp4)** - Cloud Native Project demonstration showcasing the Task Management API features and functionality
+Watch a demonstration of the Task Management API in action:
 
-> **To view**: Click the link above to download and watch the demo video (20MB .mp4 file)
+https://github.com/user-attachments/assets/32f779f5-198d-4d20-84a3-98a766381580
+
+*Cloud Native Project demo showcasing the Task Management API features and functionality*
 
 ## Architecture
 
