@@ -14,6 +14,14 @@ A production-ready REST API for managing tasks with full CRUD operations, built 
 - ✅ Structured logging
 - ✅ PostgreSQL with SQLModel ORM
 
+## Demo
+
+Watch a demonstration of the Task Management API in action:
+
+![Demo Video](./cloud%20native%20project%201%20demo.mp4)
+
+_Video: Cloud Native Project Demo showcasing the Task Management API features and functionality_
+
 ## Architecture
 
 The project follows **Clean Architecture** with clear separation of concerns:
